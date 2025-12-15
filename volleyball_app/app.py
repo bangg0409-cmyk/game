@@ -145,29 +145,40 @@ with input_col2:
 with input_col3:
     # 自訂敘述功能
     st.write("自訂選項 (可選)")
-    custom_desc = st.text_input("📝 手動輸入原因 (若填寫將覆蓋選單)")
+    # 加上 placeholder 提示，讓介面更乾淨
+    custom_desc = st.text_input("📝 手動輸入原因", placeholder="若輸入此欄，將忽略左側選單")
     
-    # 手動指定得失分邏輯 (當使用手動輸入原因時，需要指定結果)
-    custom_result_type = st.radio("這球結果是？", ["得分 (我方+1)", "失誤 (對方+1)"], horizontal=True)
+    # 預設變數為 None，避免後面程式找不到變數
+    custom_result_type = None 
 
+    # ✨ 關鍵修改：只有當 custom_desc 裡面「有字」的時候，才顯示下面的選項
+    if custom_desc:
+        st.info("👇 因為使用了自訂原因，請手動指定判決：")
+        custom_result_type = st.radio(
+            "這球結果是？", 
+            ["得分 (我方+1)", "失誤 (對方+1)"], 
+            horizontal=True
+        )
 # 送出按鈕
 if st.button("確認送出", type="primary", use_container_width=True):
     
     # --- 邏輯判斷 ---
-    # 如果有填寫「自訂原因」，以自訂的為主
     if custom_desc:
+        # 如果有打字，就看自訂的結果
+        # 因為 radio 預設一定有值，所以直接用
         final_reason = custom_desc
-        if "得分" in custom_result_type:
+        
+        # 這裡要小心，確保 custom_result_type 有抓到值
+        if custom_result_type and "得分" in custom_result_type:
             who_gets_point = "Self"
             result_desc = "得分"
         else:
             who_gets_point = "Opponent"
             result_desc = "失分"
     else:
-        # 使用選單的邏輯
+        # 沒有打字，就走原本的選單邏輯
         final_reason = detail_action
         who_gets_point, result_desc = action_map[category][detail_action]
-    
     # --- 分數計算 ---
     if who_team == team_a_name:
         if who_gets_point == "Self":
@@ -203,9 +214,11 @@ st.subheader(f"📊 第 {st.session_state.current_set} 局 - 紀錄明細")
 current_set_logs = st.session_state.logs[st.session_state.logs['局數'] == st.session_state.current_set]
 
 def highlight_row(row):
-    color = '#ffe6e6' if '失分' in row['結果'] else '#e6ffe6'
-    return [f'background-color: {color}' for _ in row]
-
+    # 判斷背景色
+    bg_color = '#ffe6e6' if '失分' in row['結果'] else '#e6ffe6'
+    
+    # 重點在這行：多加了 "color: black"，強制字體變黑色
+    return [f'background-color: {bg_color}; color: black' for _ in row]
 if not current_set_logs.empty:
     st.dataframe(current_set_logs.style.apply(highlight_row, axis=1), use_container_width=True)
 else:
@@ -213,4 +226,5 @@ else:
 
 # 下載區
 csv = st.session_state.logs.to_csv(index=False).encode('utf-8-sig')
+
 st.download_button("📥 下載完整比賽紀錄 (CSV)", csv, "match_log.csv", "text/csv")
