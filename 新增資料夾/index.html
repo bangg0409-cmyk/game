@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>阿瓦隆 線上房間</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Noto Sans TC", sans-serif;
+      background: radial-gradient(circle at 20% 20%, #1c2a44, #0b0f1d);
+      color: #e8edff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      padding: 16px;
+    }
+    header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+    h1 { margin: 0; font-size: 24px; color: #90d0ff; }
+    .card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+    }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(280px,1fr)); gap: 14px; }
+    label { display: block; margin: 6px 0 4px; color: #a9b7d9; font-size: 13px; }
+    input, select, button, textarea {
+      width: 100%;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.06);
+      color: #e8edff;
+      font-size: 15px;
+    }
+    button {
+      border: none;
+      cursor: pointer;
+      background: linear-gradient(120deg, #4da3ff, #7cf2ff);
+      color: #001322;
+      font-weight: 700;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.3);
+      transition: transform 0.08s ease;
+    }
+    button:active { transform: translateY(1px); }
+    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 12px; background: rgba(255,255,255,0.05); }
+    .tag { padding: 4px 8px; border-radius: 8px; font-size: 12px; }
+    .tag.good { background: rgba(65,173,255,0.16); color: #9fd5ff; }
+    .tag.evil { background: rgba(255,92,120,0.14); color: #ffb3c4; }
+    .list { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+    .list li { padding: 10px; border-radius: 10px; background: rgba(255,255,255,0.04); display: flex; justify-content: space-between; align-items: center; }
+    .muted { color: #9aa8c7; font-size: 13px; }
+    .small { font-size: 13px; }
+    .warn { color: #ffc371; }
+    .danger { color: #ff7b92; }
+    .good { color: #9fe0ff; }
+    .evil { color: #ff9fb0; }
+    .table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .table th, .table td { border: 1px solid rgba(255,255,255,0.08); padding: 6px 8px; text-align: center; }
+    textarea { resize: vertical; min-height: 72px; }
+    .flex-between { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+    .chip-btn {
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.05);
+      cursor: pointer;
+      color: #e8edff;
+    }
+    .chip-btn.active { border-color: #7cf2ff; background: rgba(124,242,255,0.12); color: #7cf2ff; }
+    .stack { display: flex; flex-direction: column; gap: 8px; }
+    .mission-marker { display: inline-flex; gap: 6px; }
+    .mission-marker span { width: 26px; height: 26px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.1); display: inline-flex; align-items: center; justify-content: center; font-weight: 700; }
+    .mission-marker .success { background: rgba(120,200,255,0.25); color: #aee3ff; }
+    .mission-marker .fail { background: rgba(255,120,120,0.22); color: #ffc1c1; }
+    code { background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>阿瓦隆 線上房間</h1>
+    <span class="muted">輸入房號即可連線同步：角色分配、投票、任務計分</span>
+  </header>
+
+  <div class="grid">
+    <div class="card stack">
+      <div class="row">
+        <div style="flex:1">
+          <label>玩家名稱</label>
+          <input id="playerName" placeholder="例：梅林吃玉米" />
+        </div>
+        <div style="flex:1">
+          <label>房號</label>
+          <input id="roomCode" placeholder="例如：AVALON88" />
+        </div>
+      </div>
+      <div class="row">
+        <button style="flex:1" id="joinBtn">加入 / 建立 房間</button>
+        <button style="flex:1;background:linear-gradient(120deg,#6effc5,#9cff6e);" id="copyShare">複製分享連結</button>
+      </div>
+      <div class="muted small" id="statusText">尚未連線</div>
+      <div class="warn small">提示：需要填入 Supabase 參數才能真正連網同步，見下方「如何部署」。</div>
+    </div>
+
+    <div class="card stack">
+      <div class="flex-between">
+        <strong>房內玩家</strong>
+        <span class="muted small" id="hostBadge">等待房主...</span>
+      </div>
+      <ul class="list" id="playerList"></ul>
+      <div class="small muted">最先進房者為房主，可操作發牌與回合控管。</div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card stack">
+      <div class="flex-between">
+        <strong>角色與擴充</strong>
+        <span class="muted small">每局必含：梅林、刺客</span>
+      </div>
+      <div class="row" id="roleToggles"></div>
+      <div class="row">
+        <button id="dealBtn">房主：發牌</button>
+        <button id="revealBtn" style="background:linear-gradient(120deg,#ffc371,#ff9a9e);">顯示我的身分</button>
+      </div>
+      <div class="muted small" id="myRoleText">尚未發牌</div>
+    </div>
+
+    <div class="card stack">
+      <div class="flex-between">
+        <strong>任務流程</strong>
+        <span class="muted small" id="roundInfo">第 1 回合</span>
+      </div>
+      <div class="row">
+        <select id="teamSelect" multiple size="6" style="flex:1"></select>
+        <div class="stack" style="width:180px">
+          <button id="startVoteBtn">房主：開始投票</button>
+          <button id="startQuestBtn" style="background:linear-gradient(120deg,#8ed8ff,#65ffea);">房主：開始任務</button>
+          <button id="resetGameBtn" style="background:linear-gradient(120deg,#ff7f7f,#fcb045);">重置對局</button>
+        </div>
+      </div>
+      <div class="mission-marker" id="missionTrack"></div>
+      <div class="small muted" id="voteHint">投票階段：所有人表決同意/反對</div>
+      <div class="row">
+        <button class="chip-btn" data-vote="approve">我同意</button>
+        <button class="chip-btn" data-vote="reject">我反對</button>
+        <button class="chip-btn" data-quest="success">任務成功</button>
+        <button class="chip-btn" data-quest="fail">任務失敗</button>
+      </div>
+      <div class="muted small" id="resultText">等待開始...</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <strong>規則摘要</strong>
+    <div class="small muted">
+      <p>人數 5-10 人，藍方 3~6 張，紅方 2~4 張。連續 5 次投票失敗則紅方勝利。7 人以上第 4 任務需要兩張失敗才算失敗。藍方需 3 成功，紅方 3 失敗；藍方勝時刺客可刺殺梅林奪勝。</p>
+      <table class="table">
+        <thead><tr><th>人數</th><th>藍</th><th>紅</th><th>隊伍人數</th></tr></thead>
+        <tbody id="teamSizeTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card stack">
+    <strong>如何部署（需一次性設定 Supabase）</strong>
+    <ol class="small">
+      <li>登入 <a href="https://supabase.com" target="_blank" rel="noreferrer">Supabase</a> 建立專案，取得 <code>project url</code> 與 <code>anon key</code>。</li>
+      <li>在本檔案頂部的 <code>SUPABASE_URL</code> 與 <code>SUPABASE_ANON_KEY</code> 填入你的值。</li>
+      <li>直接開啟本 HTML 或部署到 Netlify / Vercel，房號即刻可跨網同步。</li>
+    </ol>
+    <div class="muted small">目前未填入憑證時，畫面可單機試玩但不會跨裝置同步。</div>
+  </div>
+
+  <script type="module">
+    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.48.0/+esm";
+
+    // TODO: 填入自己的 Supabase 專案設定
+    const SUPABASE_URL = "";
+    const SUPABASE_ANON_KEY = "";
+
+    const rolePool = [
+      { id: "merlin", name: "梅林", camp: "good", required: true, hint: "知道除莫德雷德外的紅" },
+      { id: "percival", name: "派西維爾", camp: "good", optional: true, hint: "知道梅林位置" },
+      { id: "loyal", name: "亞瑟忠臣", camp: "good", filler: true },
+      { id: "mordred", name: "莫德雷德", camp: "evil", optional: true, hint: "不被梅林看到" },
+      { id: "morgana", name: "莫甘娜", camp: "evil", optional: true, hint: "假裝梅林" },
+      { id: "assassin", name: "刺客", camp: "evil", required: true, hint: "結算可刺殺" },
+      { id: "oberon", name: "奧伯倫", camp: "evil", optional: true, hint: "不認識隊友" },
+      { id: "minion", name: "莫德雷德爪牙", camp: "evil", filler: true },
+    ];
+
+    const teamSizeLookup = {
+      5: [2, 3, 2, 3, 3],
+      6: [2, 3, 4, 3, 4],
+      7: [2, 3, 3, 4, 4],
+      8: [3, 4, 4, 5, 5],
+      9: [3, 4, 4, 5, 5],
+      10:[3, 4, 4, 5, 5],
+    };
+
+    const playerListEl = document.getElementById("playerList");
+    const teamSizeTable = document.getElementById("teamSizeTable");
+    const teamSelect = document.getElementById("teamSelect");
+    const missionTrack = document.getElementById("missionTrack");
+    const roleToggles = document.getElementById("roleToggles");
+    const voteHint = document.getElementById("voteHint");
+    const statusText = document.getElementById("statusText");
+    const resultText = document.getElementById("resultText");
+    const hostBadge = document.getElementById("hostBadge");
+    const myRoleText = document.getElementById("myRoleText");
+    const roundInfo = document.getElementById("roundInfo");
+
+    const voteButtons = document.querySelectorAll("[data-vote]");
+    const questButtons = document.querySelectorAll("[data-quest]");
+
+    let supabase = null;
+    let channel = null;
+    let roomState = null;
+    let presenceState = {};
+    let me = { id: crypto.randomUUID(), name: "" };
+    let myRole = null;
+    let roomCode = "";
+
+    const defaultState = () => ({
+      createdAt: Date.now(),
+      hostId: me.id,
+      options: { percival: true, mordred: true, morgana: true, oberon: false, lady: false },
+      round: 1,
+      voteFails: 0,
+      missions: [],
+      phase: "idle", // idle -> voting -> quest -> assassin -> end
+      team: [],
+      votes: {},
+      questCards: {},
+      roleMap: {},
+      lastResult: "",
+      winner: "",
+    });
+
+    const initSupabase = () => {
+      if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+        statusText.textContent = "未填 Supabase 參數，僅離線試玩（同裝置同步）。";
+        return;
+      }
+      supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { realtime: { params: { eventsPerSecond: 5 } } });
+    };
+
+    const renderTeamTable = () => {
+      teamSizeTable.innerHTML = "";
+      Object.entries(teamSizeLookup).forEach(([count, arr]) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${count}</td><td>${count <= 6 ? 3 : Math.ceil(count*0.6)}</td><td>${count - (count <= 6 ? 3 : Math.ceil(count*0.6))}</td><td>${arr.join(" / ")}</td>`;
+        teamSizeTable.appendChild(tr);
+      });
+    };
+
+    const renderRoleToggles = () => {
+      roleToggles.innerHTML = "";
+      rolePool.filter(r => r.optional).forEach(r => {
+        const btn = document.createElement("button");
+        btn.className = "chip-btn";
+        btn.textContent = `${r.name}`;
+        btn.title = r.hint || "";
+        btn.dataset.role = r.id;
+        btn.onclick = () => {
+          const enabled = roomState.options[r.id];
+          roomState.options[r.id] = !enabled;
+          btn.classList.toggle("active", roomState.options[r.id]);
+          pushState();
+        };
+        roleToggles.appendChild(btn);
+      });
+    };
+
+    const renderPlayers = () => {
+      const players = Object.values(presenceState);
+      players.sort((a,b) => a.joined - b.joined);
+      playerListEl.innerHTML = "";
+      teamSelect.innerHTML = "";
+      players.forEach(p => {
+        const li = document.createElement("li");
+        const you = p.id === me.id ? "（我）" : "";
+        li.innerHTML = `<div>${p.name || "未命名"} ${you}</div><span class="muted small">${p.id === roomState.hostId ? "房主" : ""}</span>`;
+        playerListEl.appendChild(li);
+
+        const opt = document.createElement("option");
+        opt.value = p.id;
+        opt.textContent = p.name || "未命名";
+        teamSelect.appendChild(opt);
+      });
+      hostBadge.textContent = me.id === roomState.hostId ? "你是房主" : `房主：${presenceState[roomState.hostId]?.name || "未知"}`;
+    };
+
+    const renderMissionTrack = () => {
+      missionTrack.innerHTML = "";
+      for (let i = 0; i < 5; i++) {
+        const span = document.createElement("span");
+        const val = roomState.missions[i];
+        span.textContent = i + 1;
+        if (val === "success") span.classList.add("success");
+        if (val === "fail") span.classList.add("fail");
+        missionTrack.appendChild(span);
+      }
+      roundInfo.textContent = `第 ${roomState.round} 回合`;
+    };
+
+    const broadcast = (payload) => {
+      if (!channel) return;
+      channel.send({ type: "broadcast", event: "state", payload });
+    };
+
+    const pushState = () => {
+      broadcast({ roomState });
+      renderPlayers();
+      renderMissionTrack();
+      updateButtons();
+    };
+
+    const applyState = (next) => {
+      if (!next) return;
+      roomState = next;
+      renderMissionTrack();
+      updateButtons();
+      updateTexts();
+    };
+
+    const updateButtons = () => {
+      document.getElementById("dealBtn").disabled = me.id !== roomState.hostId;
+      document.getElementById("startVoteBtn").disabled = me.id !== roomState.hostId;
+      document.getElementById("startQuestBtn").disabled = me.id !== roomState.hostId;
+    };
+
+    const updateTexts = () => {
+      voteHint.textContent = roomState.phase === "voting" ? "投票階段：按下同意/反對" :
+        roomState.phase === "quest" ? "任務階段：被選中者秘密提交成功/失敗" :
+        roomState.phase === "assassin" ? "刺客選人刺殺梅林（手動）" :
+        "等待房主操作";
+      resultText.textContent = roomState.lastResult || "等待開始...";
+      renderMyRole();
+    };
+
+    const renderMyRole = () => {
+      if (!myRole) { myRoleText.textContent = "尚未發牌"; return; }
+      const role = rolePool.find(r => r.id === myRole);
+      myRoleText.textContent = `你的身分：${role?.name || myRole}（${role?.camp === "good" ? "正義" : "邪惡"}）`;
+    };
+
+    const computeRoleSet = (count) => {
+      const roles = [];
+      roles.push("merlin");
+      roles.push("assassin");
+      if (roomState.options.percival) roles.push("percival");
+      if (roomState.options.mordred) roles.push("mordred");
+      if (roomState.options.morgana) roles.push("morgana");
+      if (roomState.options.oberon && count >= 7) roles.push("oberon");
+
+      const goodNeeded = Math.max(3, Math.min(6, Math.ceil(count * 0.6)));
+      const evilNeeded = count - goodNeeded;
+      const currentGood = roles.filter(r => rolePool.find(x => x.id === r)?.camp === "good").length;
+      const currentEvil = roles.filter(r => rolePool.find(x => x.id === r)?.camp === "evil").length;
+      for (let i = currentGood; i < goodNeeded; i++) roles.push("loyal");
+      for (let i = currentEvil; i < evilNeeded; i++) roles.push("minion");
+      return roles.slice(0, count);
+    };
+
+    const shuffle = (arr) => arr.sort(() => Math.random() - 0.5);
+
+    const dealRoles = () => {
+      const players = Object.values(presenceState);
+      if (players.length < 5 || players.length > 10) {
+        alert("玩家數需 5-10 人");
+        return;
+      }
+      const roles = shuffle(computeRoleSet(players.length));
+      const map = {};
+      players.forEach((p, idx) => map[p.id] = roles[idx]);
+      roomState.roleMap = map;
+      roomState.phase = "voting";
+      roomState.round = 1;
+      roomState.missions = [];
+      roomState.voteFails = 0;
+      roomState.votes = {};
+      roomState.questCards = {};
+      roomState.lastResult = "已發牌，進入第 1 回合投票";
+      pushState();
+      revealMyRole();
+    };
+
+    const revealMyRole = () => {
+      myRole = roomState.roleMap[me.id];
+      renderMyRole();
+    };
+
+    const startVote = () => {
+      const selected = Array.from(teamSelect.selectedOptions).map(o => o.value);
+      if (selected.length !== teamSizeLookup[getPlayerCount()]?.[roomState.round-1]) {
+        alert("隊伍人數不符當前回合需求");
+        return;
+      }
+      roomState.team = selected;
+      roomState.phase = "voting";
+      roomState.votes = {};
+      roomState.lastResult = `第 ${roomState.round} 回合：隊伍 ${selected.length} 人開始投票`;
+      pushState();
+    };
+
+    const startQuest = () => {
+      if (!roomState.team?.length) { alert("請先選隊伍並投票通過"); return; }
+      roomState.phase = "quest";
+      roomState.questCards = {};
+      roomState.lastResult = `任務進行中（隊伍：${roomState.team.length}人）`;
+      pushState();
+    };
+
+    const submitVote = (vote) => {
+      roomState.votes[me.id] = vote;
+      pushState();
+      const total = Object.keys(roomState.votes).length;
+      if (total === getPlayerCount()) finishVote();
+    };
+
+    const finishVote = () => {
+      const votes = Object.values(roomState.votes);
+      const approve = votes.filter(v => v === "approve").length;
+      const reject = votes.length - approve;
+      if (approve > reject) {
+        roomState.lastResult = `投票通過：${approve} 贊成 / ${reject} 反對`;
+        roomState.voteFails = 0;
+        roomState.phase = "quest";
+      } else {
+        roomState.lastResult = `投票失敗：${approve} 贊成 / ${reject} 反對`;
+        roomState.voteFails += 1;
+        roomState.round = Math.min(5, roomState.round + 1);
+        roomState.phase = "voting";
+        if (roomState.voteFails >= 5) {
+          roomState.winner = "evil";
+          roomState.phase = "end";
+          roomState.lastResult = "連續 5 次投票失敗，邪惡陣營勝利";
+        }
+      }
+      roomState.votes = {};
+      pushState();
+    };
+
+    const submitQuest = (card) => {
+      if (!roomState.team.includes(me.id)) { alert("未被選入任務"); return; }
+      if (card === "fail" && rolePool.find(r => r.id === roomState.roleMap[me.id])?.camp === "good") {
+        alert("正義陣營只能提交成功");
+        return;
+      }
+      roomState.questCards[me.id] = card;
+      pushState();
+      if (Object.keys(roomState.questCards).length === roomState.team.length) finishQuest();
+    };
+
+    const finishQuest = () => {
+      const fails = Object.values(roomState.questCards).filter(c => c === "fail").length;
+      const needTwoFail = getPlayerCount() >= 7 && roomState.round === 4;
+      const success = needTwoFail ? fails < 2 : fails === 0;
+      roomState.missions[roomState.round - 1] = success ? "success" : "fail";
+      roomState.lastResult = success ? `任務成功，失敗票：${fails}` : `任務失敗，失敗票：${fails}`;
+      const successCount = roomState.missions.filter(m => m === "success").length;
+      const failCount = roomState.missions.filter(m => m === "fail").length;
+      if (successCount >= 3) {
+        roomState.phase = "assassin";
+        roomState.lastResult += "，進入刺殺階段（請刺客手動宣告）";
+      } else if (failCount >= 3) {
+        roomState.phase = "end";
+        roomState.winner = "evil";
+        roomState.lastResult += "，邪惡陣營勝利";
+      } else {
+        roomState.round = Math.min(5, roomState.round + 1);
+        roomState.phase = "voting";
+      }
+      roomState.team = [];
+      roomState.questCards = {};
+      roomState.votes = {};
+      pushState();
+    };
+
+    const getPlayerCount = () => Object.keys(presenceState).length || 0;
+
+    const resetGame = () => {
+      roomState = defaultState();
+      pushState();
+      myRole = null;
+      renderMyRole();
+    };
+
+    const setupPresence = async () => {
+      if (!supabase) return; // offline local mode
+      channel = supabase.channel(`avalon_${roomCode}`, {
+        config: { presence: { key: me.id } }
+      });
+
+      channel.on("broadcast", { event: "state" }, ({ payload }) => {
+        if (payload?.roomState) applyState(payload.roomState);
+      });
+
+      channel.on("presence", { event: "sync" }, () => {
+        presenceState = channel.presenceState();
+        renderPlayers();
+      });
+
+      channel.on("presence", { event: "join" }, ({ newPresences }) => {
+        newPresences.forEach(p => presenceState[p.key] = p);
+        renderPlayers();
+      });
+
+      channel.on("presence", { event: "leave" }, ({ leftPresences }) => {
+        leftPresences.forEach(p => delete presenceState[p.key]);
+        renderPlayers();
+      });
+
+      await channel.subscribe();
+      channel.track({ id: me.id, name: me.name, joined: Date.now() });
+      presenceState[me.id] = { id: me.id, name: me.name, joined: Date.now() };
+      renderPlayers();
+      pushState();
+    };
+
+    // UI bindings
+    document.getElementById("joinBtn").onclick = async () => {
+      me.name = document.getElementById("playerName").value.trim() || "無名玩家";
+      roomCode = (document.getElementById("roomCode").value.trim() || "AVALON").toUpperCase();
+      statusText.textContent = `已加入房號 ${roomCode}`;
+      if (!roomState) roomState = defaultState();
+      initSupabase();
+      if (supabase) {
+        await setupPresence();
+      } else {
+        // offline fallback: use localStorage to sync in same裝置
+        const key = `avalon_state_${roomCode}`;
+        const stored = localStorage.getItem(key);
+        if (stored) applyState(JSON.parse(stored));
+        setInterval(() => {
+          localStorage.setItem(key, JSON.stringify(roomState));
+          const latest = localStorage.getItem(key);
+          if (latest) applyState(JSON.parse(latest));
+        }, 800);
+        presenceState[me.id] = { id: me.id, name: me.name, joined: Date.now() };
+        renderPlayers();
+        pushState();
+      }
+    };
+
+    document.getElementById("copyShare").onclick = () => {
+      const url = `${location.origin}${location.pathname}?room=${encodeURIComponent(document.getElementById("roomCode").value || "")}`;
+      navigator.clipboard.writeText(url);
+      statusText.textContent = "已複製分享連結";
+    };
+
+    document.getElementById("dealBtn").onclick = () => {
+      if (me.id !== roomState.hostId) return alert("只有房主可發牌");
+      dealRoles();
+    };
+    document.getElementById("revealBtn").onclick = revealMyRole;
+    document.getElementById("startVoteBtn").onclick = () => {
+      if (me.id !== roomState.hostId) return;
+      startVote();
+    };
+    document.getElementById("startQuestBtn").onclick = () => {
+      if (me.id !== roomState.hostId) return;
+      startQuest();
+    };
+    document.getElementById("resetGameBtn").onclick = () => {
+      if (me.id !== roomState.hostId) return;
+      if (confirm("重置本局?")) resetGame();
+    };
+
+    voteButtons.forEach(btn => btn.onclick = () => submitVote(btn.dataset.vote));
+    questButtons.forEach(btn => btn.onclick = () => submitQuest(btn.dataset.quest));
+
+    renderTeamTable();
+    roomState = defaultState();
+    renderRoleToggles();
+    renderMissionTrack();
+  </script>
+</body>
+</html>
